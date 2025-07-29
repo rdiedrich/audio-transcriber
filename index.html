@@ -113,6 +113,7 @@
                 Your transcribed text will appear here.
             </div>
         </div>
+        <div class="text-xs text-gray-400 text-right mt-4">v0.1.0</div>
     </div>
 
     <script>
@@ -147,71 +148,106 @@
             messageBox.classList.add('hidden');
         }
 
-        // Function to convert Blob to Base64 string
-        function blobToBase64(blob) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    // The result is a data URL (e.g., "data:audio/webm;base64,...")
-                    // We need to extract only the base64 part
-                    const base64String = reader.result.split(',')[1];
-                    resolve(base64String);
-                };
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-            });
+        // Function to poll for transcription results
+        async function pollForResult(resultUrl) {
+            try {
+                const response = await fetch(resultUrl, {
+                    method: 'GET',
+                    headers: {
+                        'x-gladia-key': apiKey,
+                    },
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    if (result.status === 'done') {
+                        transcriptionOutput.textContent = result.result.transcription.full_transcript;
+                        showMessage("Transcription successful!", 'info');
+                        loadingIndicator.classList.add('hidden');
+                    } else if (result.status === 'processing' || result.status === 'queued') {
+                        // Poll again after a delay
+                        setTimeout(() => pollForResult(resultUrl), 5000);
+                    } else {
+                        throw new Error(`Transcription failed with status: ${result.status}`);
+                    }
+                } else {
+                    throw new Error(`Failed to fetch transcription result: ${result.detail || 'Unknown error'}`);
+                }
+            } catch (error) {
+                console.error("Error polling for result:", error);
+                transcriptionOutput.textContent = `Error: ${error.message}. Please try again.`;
+                showMessage(`Error: ${error.message}. Failed to get transcription result.`, 'error');
+                loadingIndicator.classList.add('hidden');
+            }
         }
 
-        // Function to send audio to the Gladia.io API for transcription
-        async function sendAudioToAPI(base64Audio, mimeType) {
+        // Function to upload audio and initiate transcription
+        async function uploadAndTranscribe(audioBlob) {
             loadingIndicator.classList.remove('hidden');
             hideMessageBox();
-            transcriptionOutput.textContent = 'Processing audio...';
+            transcriptionOutput.textContent = 'Uploading audio...';
 
-            // Retrieve the API key from the input field
             apiKey = apiKeyInput.value.trim();
-
             if (!apiKey) {
-                showMessage("Please enter your Gladia.io API key before recording.", 'error');
+                showMessage("Please enter your Gladia.io API key.", 'error');
                 loadingIndicator.classList.add('hidden');
                 transcriptionOutput.textContent = 'Your transcribed text will appear here.';
                 return;
             }
 
             try {
-                const apiUrl = "https://api.gladia.io/v2/transcription/"; // Gladia.io API endpoint
+                // Step 1: Upload the audio file
+                const formData = new FormData();
+                formData.append('audio', audioBlob, 'recording.webm');
 
-                const payload = {
-                    audio: base64Audio,
+                const uploadResponse = await fetch("https://api.gladia.io/v2/upload", {
+                    method: 'POST',
+                    headers: {
+                        'x-gladia-key': apiKey,
+                    },
+                    body: formData,
+                });
+
+                const uploadResult = await uploadResponse.json();
+
+                if (!uploadResponse.ok) {
+                    throw new Error(`Audio upload failed: ${uploadResult.detail || 'Unknown error'}`);
+                }
+                
+                const audioUrl = uploadResult.audio_url;
+                transcriptionOutput.textContent = 'Audio uploaded. Requesting transcription...';
+
+                // Step 2: Request transcription with the audio URL
+                const transcribePayload = {
+                    audio_url: audioUrl,
                     language_behaviour: "automatic single language",
-                    toggle_diarization: false,
-                    toggle_direct_translate: false,
                 };
 
-                const response = await fetch(apiUrl, {
+                const transcribeResponse = await fetch("https://api.gladia.io/v2/pre-recorded", {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'x-gladia-key': apiKey // Gladia.io API key header
+                        'x-gladia-key': apiKey,
                     },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify(transcribePayload),
                 });
 
-                const result = await response.json();
+                const transcribeResult = await transcribeResponse.json();
 
-                if (response.ok && result && result.prediction) {
-                    transcriptionOutput.textContent = result.prediction;
-                    showMessage("Transcription successful!", 'info');
-                } else {
-                    console.error("API response structure unexpected or error:", result);
-                    transcriptionOutput.textContent = `Error: Could not transcribe audio. ${result.detail || 'Unexpected API response.'}`;
-                    showMessage(`Error: Could not transcribe audio. ${result.detail || 'Please check your API key and try again.'}`, 'error');
+                if (!transcribeResponse.ok) {
+                    throw new Error(`Transcription request failed: ${transcribeResult.detail || 'Unknown error'}`);
                 }
+
+                transcriptionOutput.textContent = 'Transcription in progress...';
+                
+                // Step 3: Poll for the result
+                await pollForResult(transcribeResult.result_url);
+
             } catch (error) {
-                console.error("Error sending audio to API:", error);
+                console.error("Error during transcription process:", error);
                 transcriptionOutput.textContent = `Error: ${error.message}. Please try again.`;
-                showMessage(`Error: ${error.message}. Failed to send audio to API.`, 'error');
-            } finally {
+                showMessage(`Error: ${error.message}.`, 'error');
                 loadingIndicator.classList.add('hidden');
             }
         }
@@ -241,12 +277,9 @@
                 // Event handler for when recording stops
                 mediaRecorder.onstop = async () => {
                     const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
-                    const base64Audio = await blobToBase64(audioBlob);
-                    console.log("Audio recorded:", audioBlob);
-                    console.log("Base64 Audio (first 100 chars):", base64Audio.substring(0, 100) + "...");
-
-                    // Send the base64 audio to the API
-                    await sendAudioToAPI(base64Audio, mediaRecorder.mimeType);
+                    
+                    // Send the audio for transcription
+                    await uploadAndTranscribe(audioBlob);
 
                     // Stop all tracks in the stream
                     stream.getTracks().forEach(track => track.stop());
