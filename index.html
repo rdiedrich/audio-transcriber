@@ -154,11 +154,7 @@
             sample_rate: SAMPLE_RATE,
             callback: true,
             callback_config: {
-              url: "https://nachten.rdiedri.ch/webhook-test/e37472ea-f860-4f49-9630-1d69b53a1636",
-              receive_pre_processing_events: false,
-              receive_realtime_processing_events: true,
-              receive_post_processing_events: false,
-              receive_lifecycle_events: false
+              url: "https://nachten.rdiedri.ch/webhook-test/e37472ea-f860-4f49-9630-1d69b53a1636"
             }
           }),
         })
@@ -217,10 +213,6 @@
           recorder?.destroy();
           audioStream?.getTracks().forEach((track) => track.stop());
           if (socket) {
-            socket.send(JSON.stringify({
-              type: "stop_recording",
-            }));
-
             socket.onopen = null;
             socket.onerror = null;
             socket.onclose = null;
