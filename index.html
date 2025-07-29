@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Audio Transcriber</title>
+    <!-- Tailwind CSS CDN for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            padding: 2rem;
+            width: 100%;
+            max-width: 28rem; /* Equivalent to md:max-w-md */
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            transition: background-color 0.2s ease-in-out;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .btn-primary {
+            background-color: #4f46e5; /* Indigo 600 */
+            color: #ffffff;
+        }
+        .btn-primary:hover {
+            background-color: #4338ca; /* Indigo 700 */
+        }
+        .btn-danger {
+            background-color: #ef4444; /* Red 500 */
+            color: #ffffff;
+        }
+        .btn-danger:hover {
+            background-color: #dc2626; /* Red 600 */
+        }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .input-field {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid #d1d5db; /* Gray 300 */
+            font-size: 1rem;
+        }
+        .text-area {
+            min-height: 8rem;
+            background-color: #f9fafb; /* Gray 50 */
+            border: 1px solid #e5e7eb; /* Gray 200 */
+            padding: 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.95rem;
+            color: #374151; /* Gray 700 */
+            white-space: pre-wrap; /* Preserve whitespace and breaks */
+            word-wrap: break-word; /* Break long words */
+        }
+        .message-box {
+            background-color: #fefcbf; /* Yellow 100 */
+            border: 1px solid #fcd34d; /* Yellow 300 */
+            color: #92400e; /* Yellow 800 */
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            text-align: center;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-2xl font-bold text-gray-800 text-center">Mobile Audio Transcriber</h1>
+
+        <div class="flex flex-col gap-2">
+            <label for="apiKeyInput" class="text-gray-700 font-medium">Gladia.io API Key:</label>
+            <input type="password" id="apiKeyInput" class="input-field" placeholder="Enter your Gladia.io API key">
+            <p class="text-sm text-gray-500">Your API key is used to access the Gladia.io speech-to-text service.</p>
+        </div>
+
+        <div class="flex gap-4 justify-center">
+            <button id="startButton" class="btn btn-primary flex-1">Start Recording</button>
+            <button id="stopButton" class="btn btn-danger flex-1" disabled>Stop Recording</button>
+        </div>
+
+        <div id="loadingIndicator" class="hidden message-box">
+            <p>Processing audio, please wait...</p>
+        </div>
+
+        <div id="messageBox" class="hidden message-box"></div>
+
+        <div class="flex flex-col gap-2">
+            <label for="transcriptionOutput" class="text-gray-700 font-medium">Transcription:</label>
+            <div id="transcriptionOutput" class="text-area">
+                Your transcribed text will appear here.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables for media recording
+        let mediaRecorder;
+        let audioChunks = [];
+        let stream;
+        let apiKey = ""; // This will be populated from the input field
+
+        // DOM elements
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const messageBox = document.getElementById('messageBox');
+        const transcriptionOutput = document.getElementById('transcriptionOutput');
+
+        // Function to show a message in the message box
+        function showMessage(message, type = 'info') {
+            messageBox.textContent = message;
+            messageBox.classList.remove('hidden', 'bg-red-100', 'border-red-300', 'text-red-800', 'bg-yellow-100', 'border-yellow-300', 'text-yellow-800');
+            if (type === 'error') {
+                messageBox.classList.add('bg-red-100', 'border-red-300', 'text-red-800');
+            } else {
+                messageBox.classList.add('bg-yellow-100', 'border-yellow-300', 'text-yellow-800');
+            }
+            messageBox.classList.remove('hidden');
+        }
+
+        // Function to hide the message box
+        function hideMessageBox() {
+            messageBox.classList.add('hidden');
+        }
+
+        // Function to convert Blob to Base64 string
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    // The result is a data URL (e.g., "data:audio/webm;base64,...")
+                    // We need to extract only the base64 part
+                    const base64String = reader.result.split(',')[1];
+                    resolve(base64String);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        // Function to send audio to the Gladia.io API for transcription
+        async function sendAudioToAPI(base64Audio, mimeType) {
+            loadingIndicator.classList.remove('hidden');
+            hideMessageBox();
+            transcriptionOutput.textContent = 'Processing audio...';
+
+            // Retrieve the API key from the input field
+            apiKey = apiKeyInput.value.trim();
+
+            if (!apiKey) {
+                showMessage("Please enter your Gladia.io API key before recording.", 'error');
+                loadingIndicator.classList.add('hidden');
+                transcriptionOutput.textContent = 'Your transcribed text will appear here.';
+                return;
+            }
+
+            try {
+                const apiUrl = "https://api.gladia.io/v2/transcription/"; // Gladia.io API endpoint
+
+                const payload = {
+                    audio: base64Audio,
+                    language_behaviour: "automatic single language",
+                    toggle_diarization: false,
+                    toggle_direct_translate: false,
+                };
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-gladia-key': apiKey // Gladia.io API key header
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result && result.prediction) {
+                    transcriptionOutput.textContent = result.prediction;
+                    showMessage("Transcription successful!", 'info');
+                } else {
+                    console.error("API response structure unexpected or error:", result);
+                    transcriptionOutput.textContent = `Error: Could not transcribe audio. ${result.detail || 'Unexpected API response.'}`;
+                    showMessage(`Error: Could not transcribe audio. ${result.detail || 'Please check your API key and try again.'}`, 'error');
+                }
+            } catch (error) {
+                console.error("Error sending audio to API:", error);
+                transcriptionOutput.textContent = `Error: ${error.message}. Please try again.`;
+                showMessage(`Error: ${error.message}. Failed to send audio to API.`, 'error');
+            } finally {
+                loadingIndicator.classList.add('hidden');
+            }
+        }
+
+        // Event listener for Start Recording button
+        startButton.addEventListener('click', async () => {
+            apiKey = apiKeyInput.value.trim();
+            if (!apiKey) {
+                showMessage("Please enter your Gladia.io API key before recording.", 'error');
+                return;
+            }
+
+            try {
+                // Request access to the user's microphone
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                // Ensure the MediaRecorder uses a supported MIME type for Gladia.io
+                // Gladia.io supports various formats, webm is common and usually works well.
+                const options = { mimeType: 'audio/webm' };
+                mediaRecorder = new MediaRecorder(stream, options);
+                audioChunks = []; // Clear previous chunks
+
+                // Event handler for when audio data is available
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                // Event handler for when recording stops
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+                    const base64Audio = await blobToBase64(audioBlob);
+                    console.log("Audio recorded:", audioBlob);
+                    console.log("Base64 Audio (first 100 chars):", base64Audio.substring(0, 100) + "...");
+
+                    // Send the base64 audio to the API
+                    await sendAudioToAPI(base64Audio, mediaRecorder.mimeType);
+
+                    // Stop all tracks in the stream
+                    stream.getTracks().forEach(track => track.stop());
+                };
+
+                mediaRecorder.start(); // Start recording
+                showMessage("Recording...", 'info');
+                startButton.disabled = true;
+                stopButton.disabled = false;
+                transcriptionOutput.textContent = 'Recording started. Speak now...';
+                hideMessageBox(); // Hide any previous error messages
+            } catch (error) {
+                console.error("Error accessing microphone:", error);
+                showMessage(`Error accessing microphone: ${error.message}. Please ensure microphone permissions are granted.`, 'error');
+                startButton.disabled = false;
+                stopButton.disabled = true;
+                transcriptionOutput.textContent = 'Your transcribed text will appear here.';
+            }
+        });
+
+        // Event listener for Stop Recording button
+        stopButton.addEventListener('click', () => {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop(); // Stop recording
+                showMessage("Recording stopped. Processing audio...", 'info');
+                startButton.disabled = false;
+                stopButton.disabled = true;
+            }
+        });
+
+        // Initialize button states on page load
+        window.onload = () => {
+            startButton.disabled = false;
+            stopButton.disabled = true;
+        };
+    </script>
+</body>
+</html>
