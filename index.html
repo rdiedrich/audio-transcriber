@@ -10,125 +10,68 @@
     <!-- Each browser uses its own audio encoding and some of them are not compatible. -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/RecordRTC/5.6.2/RecordRTC.js"></script>
 
-    <!-- Tailwind CSS CDN for styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
     <style>
       body {
-        font-family: "Inter", sans-serif;
-        background-color: #f3f4f6;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 100vh;
-        padding: 1rem;
-        box-sizing: border-box;
+        margin: 1rem;
       }
-      .container {
-        background-color: #ffffff;
-        border-radius: 1rem;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
-          0 4px 6px -2px rgba(0, 0, 0, 0.05);
-        padding: 2rem;
-        width: 100%;
-        max-width: 28rem; /* Equivalent to md:max-w-md */
+
+      form {
         display: flex;
         flex-direction: column;
-        gap: 1.5rem;
+        gap: 1rem;
       }
-      .btn {
-        padding: 0.75rem 1.5rem;
-        border-radius: 0.5rem;
-        font-weight: 600;
-        transition: background-color 0.2s ease-in-out;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+      form > div {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
       }
-      .btn-primary {
-        background-color: #4f46e5; /* Indigo 600 */
-        color: #ffffff;
+
+      form,
+      #result {
+        box-sizing: border-box;
+        max-width: 500px;
+        margin: 0 auto;
       }
-      .btn-primary:hover {
-        background-color: #4338ca; /* Indigo 700 */
-      }
-      .btn-danger {
-        background-color: #ef4444; /* Red 500 */
-        color: #ffffff;
-      }
-      .btn-danger:hover {
-        background-color: #dc2626; /* Red 600 */
-      }
-      .btn:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-      }
-      .input-field {
-        width: 100%;
-        padding: 0.75rem;
-        border-radius: 0.5rem;
-        border: 1px solid #d1d5db; /* Gray 300 */
-        font-size: 1rem;
-      }
-      .text-area {
-        min-height: 8rem;
-        background-color: #f9fafb; /* Gray 50 */
-        border: 1px solid #e5e7eb; /* Gray 200 */
-        padding: 1rem;
-        border-radius: 0.5rem;
-        font-size: 0.95rem;
-        color: #374151; /* Gray 700 */
-        white-space: pre-wrap; /* Preserve whitespace and breaks */
-        word-wrap: break-word; /* Break long words */
+
+      #result {
+        margin-top: 1rem;
+        border-top: 1px solid #333;
+        padding-top: 1rem;
+        text-align: justify;
       }
     </style>
   </head>
   <body>
-    <div class="container">
-      <h1 class="text-2xl font-bold text-gray-800 text-center">
-        Live Audio Transcriber
-      </h1>
-      <form id="form" class="flex flex-col gap-4">
-        <div class="flex flex-col gap-2">
-          <label for="gladia_key" class="text-gray-700 font-medium"
-            >Gladia API key</label
-          >
-          <input
-            id="gladia_key"
-            name="gladia_key"
-            type="text"
-            placeholder="Gladia API key"
-            required
-            class="input-field"
-          />
-        </div>
-        <div class="flex flex-col gap-2">
-          <label for="input_device" class="text-gray-700 font-medium"
-            >Audio input device</label
-          >
-          <select
-            id="input_device"
-            name="input_device"
-            required
-            disabled
-            class="input-field"
-          ></select>
-        </div>
-        <div class="flex gap-4 justify-center">
-          <button type="submit" class="btn btn-primary flex-1">
-            Start recording
-          </button>
-          <button type="button" class="btn btn-danger flex-1" disabled>
-            Stop recording
-          </button>
-        </div>
-      </form>
-
-      <div id="result" class="text-area" style="display: none">
-        <span id="finals"></span>
-        <span style="color: red" id="partials"></span>
+    <form id="form">
+      <div>
+        <label for="gladia_key">Gladia API key</label>
+        <input
+          id="gladia_key"
+          name="gladia_key"
+          type="text"
+          placeholder="Gladia API key"
+          required
+        />
       </div>
+      <div>
+        <label for="input_device">Audio input device</label>
+        <select
+          id="input_device"
+          name="input_device"
+          required
+          disabled
+        ></select>
+      </div>
+      <button type="submit">Start recording</button>
+      <button type="button" style="color: white;" disabled>
+        Stop recording
+      </button>
+    </form>
+
+    <div id="result" style="display: none;">
+      <span id="finals"></span>
+      <span style="color: red;" id="partials"></span>
     </div>
 
     <script>
@@ -153,54 +96,50 @@
           'select[name="input_device"]'
         );
 
-        if (window.location.protocol === "file:") {
+        if (window.location.protocol === 'file:') {
           const audioDevices = await navigator.mediaDevices
             .enumerateDevices()
-            .then((devices) => devices.filter((d) => d.kind === "audioinput"));
+            .then((devices) => devices.filter((d) => d.kind === 'audioinput'));
           if (!audioDevices.length) {
-            window.alert("No audio input device found");
+            window.alert('No audio input device found');
             return;
           }
 
-          console.log(
-            "Cannot list audio input devices since you are running the file locally. We will use your default audio input."
-          );
-          const option = document.createElement("option");
-          option.textContent = "Default";
-          option.value = "";
+          console.log('Cannot list audio input devices since you are running the file locally. We will use your default audio input.')
+          const option = document.createElement('option');
+          option.textContent = 'Default';
+          option.value = '';
           inputDeviceSelect.appendChild(option);
-          inputDeviceSelect.value = "";
-          return;
+          inputDeviceSelect.value = '';
+          return
         }
 
         // Ask the permissions to the user
         const media = await navigator.mediaDevices.getUserMedia({
-          audio: true,
+          audio: true
         });
 
         const audioDevices = await navigator.mediaDevices
           .enumerateDevices()
-          .then((devices) =>
-            devices.filter((d) => d.kind === "audioinput" && d.deviceId)
-          );
+          .then((devices) => devices.filter((d) => d.kind === 'audioinput' && d.deviceId));
 
         // Stop all the tracks now that we have the user permission
         media.getTracks().forEach((track) => track.stop());
 
         if (!audioDevices.length) {
-          window.alert("No audio input device found");
+          window.alert('No audio input device found');
           return;
         }
 
-        inputDeviceSelect.innerHTML = "";
+        inputDeviceSelect.innerHTML = '';
         audioDevices.forEach((device) => {
-          const option = document.createElement("option");
+          const option = document.createElement('option');
           option.value = device.deviceId;
-          option.textContent = device.label ?? "Default";
+          option.textContent = device.label ?? 'Default';
           inputDeviceSelect.appendChild(option);
         });
-        inputDeviceSelect.value = audioDevices[0]?.deviceId ?? "";
-        inputDeviceSelect.removeAttribute("disabled");
+        inputDeviceSelect.value = audioDevices[0]?.deviceId ?? '';
+        inputDeviceSelect.removeAttribute('disabled');
       }
       listAudioDevices();
 
@@ -214,42 +153,41 @@
           body: JSON.stringify({
             sample_rate: SAMPLE_RATE,
           }),
-        });
+        })
         if (!response.ok) {
-          const message =
-            `${response.status}: ${(await response.text()) || response.statusText}`;
-          throw new Error(message);
+          const message = `${response.status}: ${(await response.text()) || response.statusText}`
+          throw new Error(message)
         }
-        return await response.json();
+        return await response.json()
       }
 
       /** @type {HTMLFormElement} */
-      const form = document.querySelector("#form");
+      const form = document.querySelector('#form');
       /** @type {HTMLButtonElement} */
       const submitButton = document.querySelector('button[type="submit"]');
       /** @type {HTMLButtonElement} */
       const stopButton = document.querySelector('button[type="button"]');
       /** @type {HTMLDivElement} */
-      const resultContainer = document.querySelector("#result");
+      const resultContainer = document.querySelector('#result');
       /** @type {HTMLSpanElement} */
-      const finalsContainer = document.querySelector("#finals");
+      const finalsContainer = document.querySelector('#finals');
       /** @type {HTMLSpanElement} */
-      const partialsContainer = document.querySelector("#partials");
+      const partialsContainer = document.querySelector('#partials');
 
-      form.addEventListener("submit", async (evt) => {
+      form.addEventListener('submit', async (evt) => {
         evt.preventDefault();
 
         // Parse submitted data
         const formData = new FormData(form);
-        const gladiaKey = formData.get("gladia_key");
-        const inputDevice = formData.get("input_device");
+        const gladiaKey = formData.get('gladia_key');
+        const inputDevice = formData.get('input_device');
 
         // Update the UI
-        submitButton.setAttribute("disabled", "true");
-        submitButton.textContent = "Waiting for connection...";
-        resultContainer.style.display = "none";
-        finalsContainer.textContent = "";
-        partialsContainer.textContent = "...";
+        submitButton.setAttribute('disabled', 'true');
+        submitButton.textContent = 'Waiting for connection...';
+        resultContainer.style.display = 'none';
+        finalsContainer.textContent = '';
+        partialsContainer.textContent = '...';
 
         /** @type {MediaStream | undefined} */
         let audioStream;
@@ -259,11 +197,14 @@
         let socket;
 
         const stop = () => {
-          submitButton.removeAttribute("disabled");
-          submitButton.textContent = "Start recording";
+          submitButton.removeAttribute('disabled');
+          submitButton.style.display = 'block';
+          submitButton.textContent = 'Start recording';
 
-          stopButton.setAttribute("disabled", "true");
-          stopButton.removeEventListener("click", stop);
+          stopButton.setAttribute('disabled', 'true');
+          stopButton.style.backgroundColor = '';
+          stopButton.style.color = '';
+          stopButton.removeEventListener('click', stop);
 
           recorder?.destroy();
           audioStream?.getTracks().forEach((track) => track.stop());
@@ -277,7 +218,7 @@
         };
 
         try {
-          const { url } = await initiateSession(gladiaKey);
+          const {url} = await initiateSession(gladiaKey)
 
           const socketPromise = deferredPromise();
 
@@ -299,13 +240,13 @@
 
           // Get the input stream
           audioStream = await navigator.mediaDevices.getUserMedia({
-            audio: inputDevice ? { deviceId: { exact: inputDevice } } : true,
+            audio: inputDevice ? { deviceId: { exact: inputDevice } } : true
           });
 
           // Initializes the recorder
           recorder = new RecordRTC(audioStream, {
-            type: "audio",
-            mimeType: "audio/wav",
+            type: 'audio',
+            mimeType: 'audio/wav',
             recorderType: RecordRTC.StereoAudioRecorder,
             timeSlice: 1000,
             async ondataavailable(blob) {
@@ -315,7 +256,7 @@
               socket?.send(modifiedBuffer);
             },
             desiredSampRate: SAMPLE_RATE,
-            numberOfAudioChannels: 1,
+            numberOfAudioChannels: 1
           });
 
           await socketPromise.promise;
@@ -340,22 +281,24 @@
         socket.onmessage = (event) => {
           const message = JSON.parse(event.data);
           console.log(message);
-          if (message?.type === "transcript") {
+          if (message?.type === 'transcript') {
             if (message.data.is_final) {
               finalsContainer.textContent += message.data.utterance.text;
-              partialsContainer.textContent = "";
+              partialsContainer.textContent = '';
             } else {
               partialsContainer.textContent = message.data.utterance.text;
             }
           }
         };
 
-        submitButton.textContent = "Recording...";
+        submitButton.textContent = 'Recording...';
 
-        stopButton.removeAttribute("disabled");
-        stopButton.addEventListener("click", stop);
+        stopButton.removeAttribute('disabled');
+        stopButton.style.backgroundColor = '#d94242';
+        stopButton.style.color = '#fff';
+        stopButton.addEventListener('click', stop);
 
-        resultContainer.style.display = "block";
+        resultContainer.style.display = 'block';
 
         // Start the recording
         recorder.startRecording();
