@@ -113,7 +113,7 @@
                 Your transcribed text will appear here.
             </div>
         </div>
-        <div class="text-xs text-gray-400 text-right mt-4">v0.1.0</div>
+        <div class="text-xs text-gray-400 text-right mt-4">v0.1.1</div>
     </div>
 
     <script>
@@ -221,7 +221,7 @@
                 // Step 2: Request transcription with the audio URL
                 const transcribePayload = {
                     audio_url: audioUrl,
-                    language_behaviour: "automatic single language",
+                    language_behaviour: "automatic",
                 };
 
                 const transcribeResponse = await fetch("https://api.gladia.io/v2/pre-recorded", {
